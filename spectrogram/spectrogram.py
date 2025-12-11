@@ -1,47 +1,8 @@
 import numpy as np
-import kagglehub
 import random
 import torch
 import torchaudio
-from torchaudio import transforms, functional
-import matplotlib.pyplot as plt
-import pathlib
-from torchaudio.utils import download_asset
-
-import os
-n_fft = 2048 
-hoplen = 512
-nbatches = 3
-min_snr = 0.01
-max_snr = 0.2
-
-
-def prepare_training_data(clip_path):
-	global nbatches
-	x_train = np.empty(3, dtype=object)
-	y_train = np.empty(3, dtype=object)
-	for i in range(nbatches):
-		x_train[i] = []
-		y_train[i] = []
-	for dir in os.listdir(clip_path):
-		dir_path = os.path.join(clip_path, dir)
-		if(os.path.isdir(dir_path)):
-			for subdir in os.listdir(dir_path):
-				sub_dir_path = os.path.join(dir_path, subdir)
-				if(os.path.isdir(sub_dir_path)):
-					for file in os.listdir(sub_dir_path):
-						file_path = os.path.join(sub_dir_path, file)
-						is_ai = (subdir == "AI")
-						if(dir == "3sec"):
-							x_train[0].append(file_path)
-							y_train[0].append(is_ai)
-						elif(dir == "5sec"):
-							x_train[1].append(file_path)
-							y_train[1].append(is_ai)
-						else:
-							x_train[2].append(file_path)
-							y_train[2].append(is_ai)
-	return x_train, y_train
+from torchaudio import transforms
 
 def resample(audio, new_sr):
 	sig, sr = audio
@@ -59,10 +20,9 @@ def time_shift(audio, max_shift):
 	sig, sr = audio
 	slen = sig.shape[0]
 	shift = int(random.random * max_shift * slen)
-	return (sig.roll(shift), sr)
+	return ((sig.roll(shift), sr))
 
-def add_noise(audio, noise_list):
-	global min_snr, max_snr
+def add_noise(audio, noise_list, min_snr=0.01, max_snr = 0.2):
 	audio_data, sr = audio
 	random_noise_file = random.choice(noise_list)
 	effects = [
@@ -82,22 +42,35 @@ def add_noise(audio, noise_list):
 	audio_power = audio_data.norm(p=2)
 	noise_power = noise.norm(p=2)
 	scale = snr * noise_power / audio_power
-	return (scale * audio_data + noise ) / 2
+	return (((scale * audio_data + noise ) / 2, sr))
 
+def spectrogram(audio, max_duration, n_mels=64, n_fft=2048, hop_len=None):
+	sig, sr = audio
+	nsamples = sig.shape[-1]
+	max_samples = max_duration * sr
+	padding = max_samples - nsamples
+	pad_sig = torch.nn.functional.pad(sig, (padding/2, padding/2), "constant", 0)
+	spec = transforms.MelSpectrogram(sr, n_fft=n_fft, hop_length=hop_len, n_mels=n_mels)(pad_sig)
+	return spec
 
-def process_audio(audiofiles, duration, sample_rate):
-	for x in audiofiles:
-		sig, sr = torchaudio.load(x)
-		re_sig = sig
-		if(sig.shape[0] != 2):
-			re_sig = torch.cat([sig, sig])
+def augment_spectrogram(spec, max_mask=0.1, n_fmask=1, n_tmask=1):
+	_, n_mels, n_steps = spec.shape
+	mask_val = spec.mean()
+	aug_spec = spec
+	freq_mask_val = n_mels * max_mask
+	time_mask_val = n_steps * max_mask	
+	for _ in range(n_fmask):
+		aug_spec = transforms.FrequencyMasking(freq_mask_param=freq_mask_val)(aug_spec, mask_val)
+	for _ in range(n_tmask):
+		aug_spec = transforms.TimeMasking(time_mask_param=time_mask_val)(aug_spec, mask_val)
+	return aug_spec
+
+def get_audio_and_resample(file_path, sample_rate):
+	sig, sr = torchaudio.load(file_path)
+	re_sig = sig
+	audio = (re_sig, sr)
+	if(sig.shape[0] != 2):
+		re_sig = torch.cat([sig, sig])
 		audio = resample((re_sig, sr), sample_rate)
+	return audio
 		
-if __name__ == "__main__":
-	noise_path = kagglehub.dataset_download("moazabdeljalil/back-ground-noise")
-	x_t, y_t = prepare_training_data('../video_clipping/clips')
-	for i in range(len(x_t[0])):
-		label = "is not AI-Generated"
-		if(y_t[0][i]): 
-			label = "is AI-Generated"
-		print('File {} {}'.format(x_t[0][i], label))
