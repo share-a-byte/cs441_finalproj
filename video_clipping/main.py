@@ -3,6 +3,7 @@ import pandas as pd
 import sys
 import subprocess
 import os
+from pathlib import Path
 
 # Constants - change if needed
 intervals = [3, 5, 10]
@@ -11,7 +12,6 @@ pref_format = "mp3"
 # Make sure these folders exist
 for interval in intervals:
     os.makedirs(f"clips/{interval}sec", exist_ok=True)
-
 
 ydl_opts = {
     'format': 'm4a/bestaudio/best',
@@ -41,6 +41,9 @@ def download_script(url):
         subprocess.call(f'rm "{output_filename}"', shell=True)
 
 if __name__ == "__main__":
+    base_path = Path(__file__).parent
+    os.chdir(base_path)
+
     df = pd.read_csv("songs.csv")
 
     if "LINK" not in df:
