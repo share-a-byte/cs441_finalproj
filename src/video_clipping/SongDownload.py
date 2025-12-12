@@ -22,6 +22,9 @@ ydl_opts = {
 }
 
 def download_script(url):
+    for interval in intervals:
+        os.makedirs(f"clips/{interval}sec", exist_ok=True)
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info_dict = ydl.extract_info(url, download=True)
         norm_filename = ydl.prepare_filename(info_dict)
