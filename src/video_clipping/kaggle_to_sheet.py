@@ -6,18 +6,19 @@ import time
 
 if __name__ == "__main__":
     original_data = pd.read_csv("songs.csv")
-    cols_to_keep = ['Title', 'LINK']
+    cols_to_keep = ['Song Type', 'Title', 'LINK']
     original_data = original_data[cols_to_keep]
 
     base_path = Path(__file__).parent   # where this script is
     os.chdir(base_path)
     
-    kaggle_dataset = pd.read_csv("../ReggaeHits.csv")
+    kaggle_dataset = pd.read_csv("../../data/ReggaeHits.csv")
 
     with YoutubeDL({"format": "bestaudio/best", "quiet": True}) as ydl:
         for index, row in kaggle_dataset.iterrows():
             artist = row["Artist"]
             song_name = row["Track"]
+            song_type = "Real"
 
             query = f"ytsearch:{artist} {song_name}"
 
@@ -27,7 +28,7 @@ if __name__ == "__main__":
                 title = info["entries"][0]["title"]
                 yt_url = f"https://www.youtube.com/watch?v={vid_id}"
                 
-                original_data.loc[len(original_data)] = [title, yt_url]
+                original_data.loc[len(original_data)] = [song_type, title, yt_url]
                 time.sleep(0.5)
             except:
                 continue
