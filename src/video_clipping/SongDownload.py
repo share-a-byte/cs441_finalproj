@@ -4,10 +4,12 @@ import sys
 import subprocess
 import os
 from pathlib import Path
+import random
+import numpy as np
 
 # Make sure these folders exist
 class SongDownloader:
-    def __init__(self):
+    def __init__(self, local_path, capacity):
         self.intervals = [3, 5, 10]
         self.format = "mp3"
         self.ydl_opts = {
@@ -19,8 +21,19 @@ class SongDownloader:
         }
         df = pd.read_csv("finalized.csv")
         self.df = pd.DataFrame(['LINK', 'ID', 'COMPLETED', 'POSITION'])
+        self.local_path = local_path
+        self.capacity = capacity
+        self.clip_pool = []
+    
+    def get_clip(self):
+        while(len(self.clip_pool) < self.capacity):
+            self.download_script()
+        idx = np.floor(random.random() * len(self.clip_pool))
+        rand_clip_path = self.clip_pool.pop(idx)
+        return rand_clip_path
+        
 
-    def download_script(self, download_new=False):
+    def download_script(self):
         # Step 1. Download_new passed from getitem -> if it is False, we proceed with the clip pool
         # Step 2. 
         for interval in self.intervals:
@@ -52,6 +65,4 @@ if __name__ == "__main__":
 
     if "LINK" not in df:
         sys.exit(0)
-
     for link in df["LINK"]:
-        download_script(link)
