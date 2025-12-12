@@ -4,7 +4,7 @@ import torch
 import torchaudio
 from torchaudio import transforms
 
-class AudioProcessing():
+class Utils():
 	@staticmethod
 	def resample(audio, new_sr):
 		sig, sr = audio
@@ -72,12 +72,13 @@ class AudioProcessing():
 		return aug_spec
 
 	@staticmethod
-	def get_audio_and_resample(file_path, sample_rate):
+	def get_audio_and_rechannel(file_path, nchannels):
 		sig, sr = torchaudio.load(file_path)
-		re_sig = sig
-		audio = (re_sig, sr)
-		if(sig.shape[0] != 2):
-			re_sig = torch.cat([sig, sig])
-			audio = resample((re_sig, sr), sample_rate)
-		return audio
+		if (sig.shape[0] == nchannels):
+			return ((sig, sr))
+		if (nchannels == 1):
+			resig = sig[:1, :]
+		else:
+			resig = torch.cat([sig, sig])
+		return ((resig, sr))
 			
