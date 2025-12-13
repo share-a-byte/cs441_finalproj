@@ -9,7 +9,7 @@ import numpy as np
 
 # Make sure these folders exist
 class SongDownloader:
-    def __init__(self, local_path, capacity, duration):
+    def __init__(self, capacity, duration):
         self.intervals = [3, 5, 10]
         self.format = "mp3"
         self.ydl_opts = {
@@ -19,27 +19,30 @@ class SongDownloader:
                 'preferredcodec': self.format,
             }]
         }
-        df = pd.read_csv("finalized.csv")
-        self.df = df[['id', 'duration', 'type']]
+        df = pd.read_csv("FINAL.csv")
+        self.df = df[['id', 'duration', 'type']].copy()
         self.df['offset'] = 0           # all data starts off with an offset of 0
-        self.local_path = local_path
         self.capacity = capacity
         self.clip_pool = []
         self.duration = duration # IN SECONDS
 
+        os.chdir("../..")
         for interval in self.intervals:
             os.makedirs(f"clips/{interval}sec", exist_ok=True)
 
     def get_clips_length(self):
         number_minutes = 0
 
-        for row in self.df.iterrows():
-            number_minutes += (row["duration"] // self.duration)
+        for index, row in self.df.iterrows():
+            seconds = int(row["duration"][:-2])
+            number_minutes += seconds // self.duration
 
+        tot_length = 0
         for interval in self.intervals:
             number_intervals = number_minutes * (self.duration / interval)
+            tot_length += number_intervals
 
-        return number_intervals
+        return tot_length
     
     def get_clip(self):
         while len(self.clip_pool) < self.capacity and len(self.df) > 0:
@@ -87,13 +90,17 @@ class SongDownloader:
         else:
             self.df[index] = [id, duration, og_type, offset + 60]
 
-# if __name__ == "__main__":
-#     base_path = Path(__file__).parent
-#     os.chdir(base_path)
+if __name__ == "__main__":
+    # set local path to be your current directory
+        # capacity = 80 -> 80 clips max
+            # duration = we pull in this size batch (duration = 60 -> 60 second batch)
+    
+    # TEST 1
+    finalized_real = pd.read_csv("FINAL.csv")
+    finalized_small = finalized_real[:2]
+    finalized_small.to_csv("FINAL.csv") # For testing purposes
+    downloader = SongDownloader(capacity=160, duration=60)
+    length = downloader.get_clips_length()
+    print(length)
 
-#     df = pd.read_csv("songs.csv")
-
-#     if "LINK" not in df:
-#         sys.exit(0)
-
-#     for link in df["LINK"]:
+    finalized_real.to_csv("FINAL.csv")
