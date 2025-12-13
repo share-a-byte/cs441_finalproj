@@ -46,9 +46,9 @@ class SongDownloader:
             self.download_new_song()
             
         idx = np.floor(random.random() * len(self.clip_pool))
-        rand_clip_path = self.clip_pool.pop(idx) # Popping tuple
+        rand_clip_path, res_type = self.clip_pool.pop(idx) # Popping tuple
 
-        return rand_clip_path
+        return [rand_clip_path, res_type]
 
     def download_new_song(self):
         # Step 1. Download_new passed from getitem -> if it is False, we proceed with the clip pool
@@ -68,13 +68,13 @@ class SongDownloader:
                 '-f', 'segment',
                 '-segment_time', str(interval),
                 '-c', 'copy',
-                f'clips/{interval}sec/{offset}_%03d.mp3',
+                f'clips/{interval}sec/{offset}_%d.mp3',
                 ])
 
             # Add to clip path the id tuples
             for interval in self.intervals:
-                for num in interval:
-                    pass
+                for num in (1, self.duration // interval + 1):
+                    self.clips.append((f'clips/{interval}sec/{offset}_{num}.mp3', og_type))
 
             # don't need this file anymore -> comment this out if you still need
             subprocess.call(f'rm "{output_filename}"', shell=True)
