@@ -1,36 +1,105 @@
-import data_processing.AudioProcessing as AP
-import pandas as pd
-from src.video_clipping import SongDownload
-import shutil
+import torch
+import torch.nn as nn
+import matplotlib.pyplot as plt
 
-class SongDataset(Dataset):
-  def __init__(self, data_path):
-    df = pd.read_csv(data_path)
-    self.index = 0
-
-    files = set()
-
-    self.temp_path = "video_clipping/clips/"
+class AudioCNN(nn.Module):
+    def __init__(self, num_classes=2, dropout = 0.5):
+        super(AudioCNN, self).__init__()
+        self.classifier = nn.Sequential(
+            nn.Conv2d(in_channels=2, out_channels=16, kernel_size=(5,5), padding=1),
+            nn.BatchNorm2d(16),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=(3,3), padding=1),
+            nn.BatchNorm2d(32),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(3,3), padding=1),
+            nn.BatchNorm2d(64),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(3,3), padding=1),
+            nn.BatchNorm2d(128),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(3,3), padding=1),
+            nn.BatchNorm2d(256),
+			      nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.AdaptiveAvgPool2d((4, 4)),
+            nn.Flatten(),
+            nn.Dropout(dropout),
+            nn.Linear(256 * 4 * 4, 256),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(256, num_classes)
+		)
+    def forward(self, x):
+        return self.classifier(x)
     
-    self.duration = 4000
-    self.sr = 44100
-    self.n_channels = 2
-    self.shift_pct = 0.4
-
-  def __len__(self):
-    return len(self.df)
-
-  def __getitem__(self, idx):
-    link = self.df.loc[idx, 'LINK']
-    SongDownload.download_script(link)
+def evaluate_model(model, loader):
+    device = torch.cuda.current_device()
+    N = 0; accuracy = 0; loss = 0
+    loss_function = nn.CrossEntropyLoss()
+    with torch.set_grad_enabled(False): 
+        for i, data in enumerate(loader, 0):
+            inputs, targets = data
+            N += len(targets)
+            outputs = model(inputs.to(torch.float32).to(device))
+            accuracy += sum(outputs.cpu().numpy() == targets.numpy())
+            loss += loss_function(outputs, targets.to(device)).item() * len(targets)
+        return loss/N, 1-accuracy/N
     
-    audio_file = self.temp_path + self.df.loc[idx, 'relative_path']
-    class_id = self.df.loc[idx, 'classID']
-    aud = AP.Utils.get_audio_and_rechannel(audio_file, self.n_channels)
-    reaud = AP.Utils.resample(aud, self.sr)
-    shift_aud = AP.Utils.time_shift(reaud, self.shift_pct)
-    sgram = AP.Utils.spectrogram(shift_aud)
-    aug_sgram = AP.Utils.augment_spectrogram(sgram, max_mask=0.1, n_fmask=2, n_tmask=2)
+def display_error_curves(training_losses, validation_losses):
+    num_epochs = len(training_losses)
+    plt.plot(range(num_epochs), training_losses, label="Training Loss")
+    plt.plot(range(num_epochs), validation_losses, label="Validation Loss")
+    plt.title('Training and Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend(loc='best')
+    plt.show()
 
-    shutil.rmtree(self.temp_path)
-    return aug_sgram, class_id
+def train_model(model, train_loader, val_loader, num_epochs, lr):
+    device = torch.cuda.current_device()
+    model = model.to(device)
+    loss_function = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    train_loss = []
+    val_loss = []
+    torch.manual_seed(1)
+    for epoch in range(num_epochs):
+        curr_loss = 0.0
+        N = 0
+        for i, data in enumerate(train_loader):
+            inputs, targets = data
+            #shape is [ninputs, nchannels, spec height, spec width]
+            optimizer.zero_grad()
+            outputs = model(inputs.to(torch.float32).to(device))
+            loss = loss_function(outputs, targets)
+            loss.backward()
+            optimizer.step()
+            curr_loss+=loss.item()*len(targets)
+            N+= len(targets)
+        curr_loss = curr_loss/N
+        train_loss.append(curr_loss)
+        #TODO: Calculate val loss and print
+        e_val_loss, e_val_err = evaluate_model(model, val_loader)
+        val_loss.append(e_val_loss)
+        print('>>>EPOCH {}<<<\n   Train loss: {}   Val Loss: {}   Error: {}\n'.format(epoch, curr_loss, e_val_loss, e_val_err))
+    f_val_loss, f_val_err = evaluate_model(model, val_loader)
+    print('>>>FINAL Val loss: {} Error: {}\n'.format(f_val_loss, f_val_err))
+    display_error_curves(train_loss, val_loss)
+      
+def inference(model, test_loader):
+    device = torch.cuda.current_device()
+    correct = 0; total = 0
+    with torch.no_grad():
+        for data in test_loader:
+            inputs, labels = data[0].to(device), data[1].to(device)
+            outputs = model(inputs)
+            # Count of predictions that matched the target label
+            correct += (outputs == labels).sum().item()
+            total += outputs.shape[0]
+        acc = correct/total
+        print(f'Accuracy: {acc:.2f}, Total items: {total}')
+
+
+
+   
+   
