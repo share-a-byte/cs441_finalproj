@@ -20,9 +20,22 @@ class SongDownloader:
             }]
         }
         df = pd.read_csv("FINAL.csv")
-        self.df = df[['uid', 'type', 'offset']]
+        df = df[['uid', 'type', 'offset']]
+        self.df = df
+
         self.capacity = capacity
-        self.clip_pool = []
+
+        n = len(df)
+        n_train = int(0.8 * n)
+        n_val = int(0.1 * n)
+
+        df_shuffled = df.sample(frac=1, random_state=1).reset_index(drop=True)
+
+        self.train_df = df_shuffled.iloc[:n_train].copy()
+        self.val_df = df_shuffled.iloc[n_train:n_train+n_val].copy()
+        self.test_df = df_shuffled.iloc[n_train+n_val:].copy()
+
+        self.clip_pool = {"train": [], "test": [], "val": []}
 
         os.chdir("../..")
         for interval in self.intervals:
@@ -38,18 +51,26 @@ class SongDownloader:
 
         return tot_length
     
-    def get_clip(self):
-        while len(self.clip_pool) < self.capacity and len(self.df) > 0:
-            self.download_new_song()
+    def get_clip(self, set_type):
+        while len(self.clip_pool[set_type]) < self.capacity and len(self.df) > 0:
+            self.download_new_song(set_type)
             
-        idx = int(np.floor(random.random() * len(self.clip_pool)))
-        rand_clip_path, res_type = self.clip_pool.pop(idx) # Popping tuple
+        idx = int(np.floor(random.random() * len(self.clip_pool[set_type])))
+        rand_clip_path, res_type = self.clip_pool[set_type].pop(idx) # Popping tuple
 
         return [rand_clip_path, res_type]
 
-    def download_new_song(self):
+    def download_new_song(self, set_type):
         # Step 1. Download_new passed from getitem -> if it is False, we proceed with the clip pool
-        sampled = self.df.sample(n=1)
+        sampled = None
+
+        if set_type == "train":
+            sampled = self.train_df.sample(n=1)
+        elif set_type == "test":
+            sampled = self.test_df.sample(n=1)
+        else:
+            sampled = self.val_df.sample(n=1)
+            
         res = sampled.values[0]
         uid, og_type, offset = res[0], res[1], int(res[2])
         url = f"https://www.youtube.com/watch?v={uid}"
@@ -74,30 +95,38 @@ class SongDownloader:
             # Add to clip path the id tuples
             for interval in self.intervals:
                 for num in range(60 // interval):
-                    self.clip_pool.append((f'clips/{interval}sec/{uid}_{offset}_{num}.mp3', og_type))
+                    self.clip_pool[set_type].append((f'clips/{interval}sec/{uid}_{offset}_{num}.mp3', og_type))
 
             # don't need this file anymore -> comment this out if you still need
             subprocess.call(f'rm "{output_filename}"', shell=True)
 
-        self.df.drop(sampled.index)
+        if set_type == "train":
+            self.train_df = self.train_df.drop(sampled.index)
+        elif set_type == "test":
+            self.test_df = self.test_df.drop(sampled.index)
+        else:
+            self.val_df = self.val_df.drop(sampled.index)
 
-if __name__ == "__main__":
-    # set local path to be your current directory
-        # capacity = 80 -> 80 clips max
-            # duration = we pull in this size batch (duration = 60 -> 60 second batch)
+# if __name__ == "__main__":
+#     # set local path to be your current directory
+#         # capacity = 80 -> 80 clips max
+#             # duration = we pull in this size batch (duration = 60 -> 60 second batch)
 
-    finalized_real = pd.read_csv("FINAL.csv")
-    finalized_small = finalized_real[:2]
-    finalized_small.to_csv("FINAL.csv") # For testing purposes
-    downloader = SongDownloader(capacity=10)
-    length = downloader.get_clips_length()
+#     # finalized_real = pd.read_csv("FINAL.csv")
+#     # finalized_small = finalized_real[:2]
+#     # finalized_small.to_csv("FINAL.csv") # For testing purposes
+#     downloader = SongDownloader(capacity=10)
+#     # length = downloader.get_clips_length()
 
-    assert(length == 76.0)
+#     print(downloader.train_df.iloc[0])
+#     print("------")
+#     print(downloader.test_df.iloc[0])
+#     print("------")
+#     print(downloader.val_df.iloc[0])
 
-    result1 = downloader.get_clip()
-    result2 = downloader.get_clip()
+#     # assert(length == 76.0)
 
-    print(result1, result2)
+#     # print(result1, result2)
 
-    os.chdir("src/video_clipping/")
-    finalized_real.to_csv("FINAL.csv", index=False)
+#     # os.chdir("src/video_clipping/")
+#     # finalized_real.to_csv("FINAL.csv", index=False)
