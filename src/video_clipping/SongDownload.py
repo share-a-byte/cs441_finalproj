@@ -112,7 +112,7 @@ class SongDownloader:
         else:
             self.val_df = self.val_df.drop(sampled.index)
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 #     # set local path to be your current directory
 #         # capacity = 80 -> 80 clips max
 #             # duration = we pull in this size batch (duration = 60 -> 60 second batch)
@@ -120,7 +120,7 @@ if __name__ == "__main__":
 #     # finalized_real = pd.read_csv("FINAL.csv")
 #     # finalized_small = finalized_real[:2]
 #     # finalized_small.to_csv("FINAL.csv") # For testing purposes
-    downloader = SongDownloader(capacity=10)
+    # downloader = SongDownloader(capacity=10)
 #     # length = downloader.get_clips_length()
 
 #     print(downloader.train_df.iloc[0])
@@ -133,8 +133,8 @@ if __name__ == "__main__":
 
 #     # print(result1, result2)
     
-    downloader.get_clip("train")
-    print(downloader.clip_pool)
+    # downloader.get_clip("train")
+    # print(downloader.clip_pool)
 
 #     # os.chdir("src/video_clipping/")
 #     # finalized_real.to_csv("FINAL.csv", index=False)

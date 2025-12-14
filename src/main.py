@@ -1,4 +1,5 @@
-import Model, Loader
+from model import AudioCNN, train_model
+from loader import SoundDataset
 from pathlib import Path
 import kagglehub
 import os
@@ -11,7 +12,11 @@ if __name__ == "__main__":
             full_path = os.path.join(root, file)
             print(full_path)
             noise_list.append(os.path.abspath(full_path))
-    train_dataloader = Loader.SoundDataset(noise_list=noise_list, set_type="train"); val_dataloader = Loader.SoundDataset(noise_list=noise_list, set_type="val"); test_dataloader = Loader.SoundDataset(noise_list=noise_list, set_type="test")
-    model = Model.AudioCNN()
-    trained_model = Model.train_model(model, train_loader=train_dataloader, val_loader=val_dataloader, num_epochs=100, lrt=0.01)
+
+    train_dataloader = SoundDataset(noise_list=noise_list, set_type="train")
+    val_dataloader = SoundDataset(noise_list=noise_list, set_type="val")
+    test_dataloader = SoundDataset(noise_list=noise_list, set_type="test")
+
+    model = AudioCNN()
+    trained_model = train_model(model, train_loader=train_dataloader, val_loader=val_dataloader, num_epochs=100, lr=0.01)
 	
