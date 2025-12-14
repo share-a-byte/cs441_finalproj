@@ -33,16 +33,20 @@ class Utils():
 		audio_data, sr = audio
 		random_noise_file = random.choice(noise_list)
 
-		noise_audio = Utils.get_audio_and_rechannel(random_noise_file, 1)
+		noise_audio = Utils.get_audio_and_rechannel(random_noise_file, 2)
 		noise, _ = Utils.resample(noise_audio, new_sr=sr)
 
 		audio_length = audio_data.shape[-1]
 		noise_length = noise.shape[-1]
+		print(noise_length, audio_length)
 		if noise_length > audio_length:
 			offset = random.randint(0, noise_length-audio_length)
 			noise = noise[..., offset:offset+audio_length]
 		elif noise_length < audio_length:
-			noise = torch.cat([noise, noise[:, :(audio_length-noise_length)]], dim=-1)
+			repeats = torch.ceil(torch.tensor(audio_length / noise_length)).long().item()
+			tiled_noise = torch.tile(noise, (1, repeats))
+			noise = tiled_noise[..., :audio_length]
+		print('Noise shape: {}, Audio shape: {}'.format(noise.shape, audio_data.shape))
 		snr_db = random.randint(min_snr, max_snr)
 		snr = np.exp(snr_db / 10)
 		audio_power = audio_data.norm(p=2)

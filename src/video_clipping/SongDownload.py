@@ -11,18 +11,19 @@ import numpy as np
 class SongDownloader:
     def __init__(self, capacity):
         self.intervals = [3, 5, 10]
-        self.format = "mp3"
+        self.format = "wav"
         self.ydl_opts = {
             'format': 'm4a/bestaudio/best',
             'postprocessors': [{ 
                 'key': 'FFmpegExtractAudio',
-                'preferredcodec': self.format,
+                'preferredcodec': 'wav',
             }]
         }
-        path = __file__.split("/")
+        path = __file__.split("\\")
         path.pop()
-        path = "/".join(path)
-
+        path = "\\".join(path)
+        print(__file__)
+        print(path)
         os.chdir(path)
 
         df = pd.read_csv("FINAL.csv")
@@ -44,7 +45,7 @@ class SongDownloader:
         self.clip_pool = {"train": [], "test": [], "val": []}
         
         for interval in self.intervals:
-            os.makedirs(f"clips/{interval}sec", exist_ok=True)
+            os.makedirs(f"clips\\{interval}sec", exist_ok=True)
 
     def get_clips_length(self):
         min_clips = len(self.df)
@@ -59,7 +60,7 @@ class SongDownloader:
     def get_clip(self, set_type):
         while len(self.clip_pool[set_type]) < self.capacity and len(self.df) > 0:
             self.download_new_song(set_type)
-            
+        print('Clip pool filled to capacity!\n')
         idx = int(np.floor(random.random() * len(self.clip_pool[set_type])))
         rand_clip_path, res_type = self.clip_pool[set_type].pop(idx) # Popping tuple
 
@@ -94,16 +95,17 @@ class SongDownloader:
                 '-f', 'segment',
                 '-segment_time', str(interval),
                 '-c', 'copy',
-                f'clips/{interval}sec/{uid}_{offset}_%d.mp3',
+                f'clips\\{interval}sec\\{uid}_{offset}_%d.wav',
                 ])
 
             # Add to clip path the id tuples
             for interval in self.intervals:
                 for num in range(60 // interval):
-                    self.clip_pool[set_type].append((f'clips/{interval}sec/{uid}_{offset}_{num}.mp3', og_type))
-
+                    self.clip_pool[set_type].append((f'clips\\{interval}sec\\{uid}_{offset}_{num}.wav', og_type))
+            print('Output file name: {}'.format(output_filename))
+            print('CWD: {}'.format(os.getcwd()))
             # don't need this file anymore -> comment this out if you still need
-            subprocess.call(f'rm "{output_filename}"', shell=True)
+            subprocess.call(f'del "{output_filename}"', shell=True)
 
         if set_type == "train":
             self.train_df = self.train_df.drop(sampled.index)

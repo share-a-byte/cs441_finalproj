@@ -33,11 +33,12 @@ class AudioCNN(nn.Module):
         return self.classifier(x)
     
 def evaluate_model(model, loader):
-    device = torch.cuda.current_device()
+    device = "cuda" if torch.cuda.is_available() else 'cpu'
+    print('Device is {}'.format(device))
     N = 0; accuracy = 0; loss = 0
     loss_function = nn.CrossEntropyLoss()
     with torch.set_grad_enabled(False): 
-        for i, data in enumerate(loader, 0):
+        for _, data in enumerate(loader):
             inputs, targets = data
             N += len(targets)
             outputs = model(inputs.to(torch.float32).to(device))
@@ -56,7 +57,8 @@ def display_error_curves(training_losses, validation_losses):
     plt.show()
 
 def train_model(model, train_loader, val_loader, num_epochs, lr):
-    device = torch.cuda.current_device()
+    device = "cuda" if torch.cuda.is_available() else 'cpu'
+    print('Device is {}'.format(device))
     model = model.to(device)
     loss_function = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -66,10 +68,11 @@ def train_model(model, train_loader, val_loader, num_epochs, lr):
     for epoch in range(num_epochs):
         curr_loss = 0.0
         N = 0
-        for i, data in enumerate(train_loader):
+        for _, data in enumerate(train_loader):
             inputs, targets = data
             #shape is [ninputs, nchannels, spec height, spec width]
             optimizer.zero_grad()
+            print('Input tensor shape: {}'.format(inputs.shape))
             outputs = model(inputs.to(torch.float32).to(device))
             loss = loss_function(outputs, targets)
             loss.backward()
@@ -87,10 +90,11 @@ def train_model(model, train_loader, val_loader, num_epochs, lr):
     display_error_curves(train_loss, val_loss)
       
 def inference(model, test_loader):
-    device = torch.cuda.current_device()
+    device = "cuda" if torch.cuda.is_available() else 'cpu'
+    print('Device is {}'.format(device))
     correct = 0; total = 0
     with torch.no_grad():
-        for data in test_loader:
+        for _, data in test_loader:
             inputs, labels = data[0].to(device), data[1].to(device)
             outputs = model(inputs)
             # Count of predictions that matched the target label
