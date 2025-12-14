@@ -9,7 +9,11 @@ from pathlib import Path
 import kagglehub
 import os
 
-def stream_to_parquet(downloader, out_path, chunk_size=128):
+base = Path(__file__).resolve().parent
+out_path = base / "parq_data" / "dataset.parquet"
+out_path.parent.mkdir(parents=True, exist_ok=True)
+
+def stream_to_parquet(downloader, out_path=out_path, chunk_size=128):
     rows = []
     writer = None
 
@@ -45,8 +49,10 @@ def stream_to_parquet(downloader, out_path, chunk_size=128):
 
             if len(rows) >= chunk_size:
                 table = pa.Table.from_pylist(rows)
+                
                 if writer is None:
                     writer = pq.ParquetWriter(out_path, table.schema)
+
                 writer.write_table(table)
                 rows.clear()
 

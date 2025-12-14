@@ -36,7 +36,7 @@ class SongDownloader:
 
     def get_next_clip(self):
         while len(self.clip_pool) < self.capacity:
-            self._download_next_song()
+            self.download_next_song()
 
         if len(self.clip_pool) == 0:
             raise StopIteration # no more valid clips
@@ -47,6 +47,8 @@ class SongDownloader:
         while self.cursor < len(self.df):
             row = self.df.iloc[self.cursor]
             self.cursor += 1
+
+            print("Downloading song ", self.cursor, " retry number ", self.retry_counts.get(uid, 0))
 
             uid, og_type, offset = row["uid"], row["type"], int(row["offset"])
             label = 1 if og_type == "AI" else 0
