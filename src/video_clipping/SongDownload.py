@@ -1,16 +1,12 @@
 import yt_dlp
 import pandas as pd
-import sys
 import subprocess
 import os
 from pathlib import Path
-import random
 import time
-import numpy as np
 
-# Make sure these folders exist
 class SongDownloader:
-    def __init__(self, capacity):
+    def __init__(self, capacity, max_retries=3):
         self.intervals = [3, 5, 10]
         self.format = "wav"
         self.ydl_opts = {
@@ -20,90 +16,86 @@ class SongDownloader:
                 'preferredcodec': 'wav',
             }]
         }
-        path = None
-        if "__file__" in globals():
-            path = str(Path(__file__).resolve().parent)
-        else:
-            path = str(Path.cwd().resolve())
-        print(globals().get("__file__", "<no __file__>"))
-        print(path)
+
+        path = str(Path(__file__).resolve().parent) if "__file__" in globals() else str(Path.cwd())
         os.chdir(path)
 
         df = pd.read_csv("FINAL.csv")
         df = df[['uid', 'type', 'offset']]
-        self.df = df
+        self.df = df.sample(frac=1, random_state=1).reset_index(drop=True)
 
+        self.cursor = 0
         self.capacity = capacity
+        self.clip_pool = []
 
-        self.clip_pool = {}
+        self.retry_counts = {}
+        self.max_retries = max_retries
 
         for interval in self.intervals:
             os.makedirs(f"clips/{interval}sec", exist_ok=True)
 
-    def get_clips_length(self):
-        min_clips = len(self.df)
-
-        tot_length = 0
-        for interval in self.intervals:
-            number_intervals = min_clips * (60 / interval)
-            tot_length += number_intervals
-
-        return tot_length
-
-    def get_clip(self):
+    def get_next_clip(self):
         while len(self.clip_pool) < self.capacity:
-            self.download_new_song()
+            self._download_next_song()
 
-        print('Clip pool filled to capacity!\n')
-        idx = int(np.floor(random.random() * len(self.clip_pool)))
+        if len(self.clip_pool) == 0:
+            raise StopIteration # no more valid clips
 
-        rand_clip_path, res_type = self.clip_pool.pop(idx) # Popping tuple
+        return self.clip_pool.pop()
 
-        return [rand_clip_path, (1 if res_type == "AI" else 0)]
+    def download_next_song(self):
+        while self.cursor < len(self.df):
+            row = self.df.iloc[self.cursor]
+            self.cursor += 1
 
-    def download_new_song(self):
-        # Step 1. Download_new passed from getitem -> if it is False, we proceed with the clip pool
-        sampled = None
+            uid, og_type, offset = row["uid"], row["type"], int(row["offset"])
+            label = 1 if og_type == "AI" else 0
+            url = f"https://www.youtube.com/watch?v={uid}"
 
-        sampled = self.df.sample(n=1)
-        res = sampled.values[0]
-        uid, og_type, offset = res[0], res[1], int(res[2])
-        url = f"https://www.youtube.com/watch?v={uid}"
+            attempts = self.retry_counts.get(uid, 0)
+            if attempts >= self.max_retries:
+                continue
 
-        with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
             try:
-              info_dict = ydl.extract_info(url, download=True)
-            except:
-              time.sleep(1.5)
+                with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+                    info_dict = ydl.extract_info(url, download=True)
+            except Exception:
+                self.retry_counts[uid] = attempts + 1
+                time.sleep(0.5)
+                continue
+
+            self.retry_counts.pop(uid, None)
+
             norm_filename = ydl.prepare_filename(info_dict)
             song_name = os.path.splitext(norm_filename)[0]
             output_filename = song_name + "." + self.format
 
             for interval in self.intervals:
                 subprocess.run([
-                'ffmpeg', '-i', output_filename,
-                '-ss', str(offset),  # DOWNLOAD FROM OFFSET
-                '-t', "60",          # DO NOT read more than 60 seconds
-                '-f', 'segment',
-                '-segment_time', str(interval),
-                '-c', 'copy',
-                f'clips/{interval}sec/{uid}_{offset}_%d.wav',
+                    'ffmpeg', '-i', output_filename,
+                    '-ss', str(offset),
+                    '-t', "60",
+                    '-f', 'segment',
+                    '-segment_time', str(interval),
+                    '-c', 'copy',
+                    f'clips/{interval}sec/{uid}_{offset}_%d.wav',
                 ], check=False)
 
-            # Add to clip path the id tuples
+            try:
+                os.remove(output_filename)
+            except FileNotFoundError:
+                pass
+
             for interval in self.intervals:
                 clip_dir = f"clips/{interval}sec"
                 prefix = f"{uid}_{offset}_"
                 for fname in os.listdir(clip_dir):
                     if fname.startswith(prefix):
                         self.clip_pool.append(
-                            (os.path.join(clip_dir, fname), og_type)
+                            (os.path.join(clip_dir, fname), label)
                         )
-                        
-            print('Output file name: {}'.format(output_filename))
-            print('CWD: {}'.format(os.getcwd()))
-            # don't need this file anymore -> comment this out if you still need
-            try:
-                os.remove(output_filename)
-            except FileNotFoundError:
-                pass
+
+            if len(self.clip_pool) > 0:
+                return
+
+        raise StopIteration

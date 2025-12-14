@@ -59,7 +59,7 @@ class Utils():
 		return spec
 
 	@staticmethod
-	def augment_spectrogram(spec, sr, n_fft=2048, target_duration=10, max_mask=0.1, n_fmask=1, n_tmask=1):
+	def augment_spectrogram(spec, sr, n_fft=2048, hop_len=1024, target_duration=10, max_mask=0.1, n_fmask=1, n_tmask=1):
 		_, n_mels, n_steps = spec.shape
 		mask_val = spec.mean()
 		aug_spec = spec
@@ -69,16 +69,13 @@ class Utils():
 			aug_spec = transforms.FrequencyMasking(freq_mask_param=freq_mask_val)(aug_spec, mask_val)
 		for _ in range(n_tmask):
 			aug_spec = transforms.TimeMasking(time_mask_param=time_mask_val)(aug_spec, mask_val)
-		target_frames = int(np.ceil((target_duration * sr) / n_fft)) #assumes no hop length
-		current_frames = aug_spec.shape[1]
+		target_frames = int(np.ceil((target_duration * sr) / hop_len)) 
+		current_frames = aug_spec.shape[-1]
 		pad_frames = target_frames - current_frames
-
-		if pad_frames > 0:
-			pad_aug_spec = F.pad(...)
-		else:
-			pad_aug_spec = torch.nn.functional.pad(aug_spec, (pad_frames//2, pad_frames//2), mode="constant", value=mask_val)
+		if(pad_frames > 0):
+			aug_spec = torch.nn.functional.pad(aug_spec, (pad_frames//2, pad_frames//2), mode="constant", value=mask_val)
 		
-		return pad_aug_spec
+		return aug_spec
 
 	@staticmethod
 	def get_audio_and_rechannel(file_path, nchannels):
