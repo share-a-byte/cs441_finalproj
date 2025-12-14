@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
+import torch
+import torch.nn as nn
+import matplotlib.pyplot as plt
+
 class AudioCNN(nn.Module):
     def __init__(self, num_classes=2, dropout = 0.5):
         super(AudioCNN, self).__init__()
@@ -35,16 +39,27 @@ class AudioCNN(nn.Module):
 def evaluate_model(model, loader):
     device = "cuda" if torch.cuda.is_available() else 'cpu'
     print('Device is {}'.format(device))
-    N = 0; accuracy = 0; loss = 0
+    model.eval()
+    N = 0
+    correct = 0
+    total_loss = 0.0
     loss_function = nn.CrossEntropyLoss()
-    with torch.set_grad_enabled(False): 
+
+    with torch.no_grad():
         for _, data in enumerate(loader):
             inputs, targets = data
-            N += len(targets)
-            outputs = model(inputs.to(torch.float32).to(device))
-            accuracy += sum(outputs.cpu().numpy() == targets.numpy())
-            loss += loss_function(outputs, targets.to(device)).item() * len(targets)
-        return loss/N, 1-accuracy/N
+            inputs = inputs.to(torch.float32).to(device)
+            targets = targets.to(device)
+
+            outputs = model(inputs)
+            loss = loss_function(outputs, targets)
+
+            preds = outputs.argmax(dim=1)
+            correct += (preds == targets).sum().item()
+            total_loss += loss.item() * targets.size(0)
+            N += targets.size(0)
+
+    return total_loss / N, 1 - (correct / N)
     
 def display_error_curves(training_losses, validation_losses):
     num_epochs = len(training_losses)
@@ -73,13 +88,15 @@ def train_model(model, train_loader, val_loader, num_epochs, lr):
             #shape is [ninputs, nchannels, spec height, spec width]
             optimizer.zero_grad()
             print('Input tensor shape: {}'.format(inputs.shape))
-            outputs = model(inputs.to(torch.float32).to(device))
+            inputs = inputs.to(torch.float32).to(device)
+            targets = targets.to(device)
+            outputs = model(inputs)
             loss = loss_function(outputs, targets)
             loss.backward()
             optimizer.step()
-            curr_loss+=loss.item()*len(targets)
-            N+= len(targets)
-        curr_loss = curr_loss/N
+            curr_loss += loss.item() * targets.size(0)
+            N += targets.size(0)
+        curr_loss = curr_loss / N
         train_loss.append(curr_loss)
         #TODO: Calculate val loss and print
         e_val_loss, e_val_err = evaluate_model(model, val_loader)
@@ -88,22 +105,30 @@ def train_model(model, train_loader, val_loader, num_epochs, lr):
     f_val_loss, f_val_err = evaluate_model(model, val_loader)
     print('>>>FINAL Val loss: {} Error: {}\n'.format(f_val_loss, f_val_err))
     display_error_curves(train_loss, val_loss)
-      
+
 def inference(model, test_loader):
     device = "cuda" if torch.cuda.is_available() else 'cpu'
     print('Device is {}'.format(device))
-    correct = 0; total = 0
+    model = model.to(device)
+    model.eval()
+
+    correct = 0
+    total = 0
     with torch.no_grad():
-        for _, data in test_loader:
-            inputs, labels = data[0].to(device), data[1].to(device)
+        for _, data in enumerate(test_loader):
+            inputs, labels = data
+            inputs = inputs.to(torch.float32).to(device)
+            labels = labels.to(device)
+
             outputs = model(inputs)
-            # Count of predictions that matched the target label
-            correct += (outputs == labels).sum().item()
-            total += outputs.shape[0]
-        acc = correct/total
-        print(f'Accuracy: {acc:.2f}, Total items: {total}')
+            preds = outputs.argmax(dim=1)
+
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
+
+    acc = correct / total if total > 0 else 0.0
+    print(f'Accuracy: {acc:.2f}, Total items: {total}')
 
 
 
-   
    
