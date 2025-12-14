@@ -12,10 +12,7 @@ class Utils():
 		if(sr == new_sr):
 			return audio
 		n_channels = sig.shape[0]
-		re_sig = torchaudio.transforms.Resample(sr, new_sr)(sig[:1, :])
-		if(n_channels > 1):
-			re_sec = transforms.Resample(sr, new_sr)(sig[1:, :])
-			re_sig = torch.cat([re_sig, re_sec])
+		re_sig = torchaudio.transforms.Resample(sr, new_sr)(sig)
 		return (re_sig, new_sr)
 
 	#from Towards Data Science: audio classification II
@@ -25,7 +22,7 @@ class Utils():
 		slen = sig.shape[1]
 		shift = int(random.random() * max_shift * slen)
 		print('Shifting by {}'.format(shift))
-		new_sig = sig.roll(shift)
+		new_sig = sig.roll(shift, dims=1)
 		return (new_sig, sr)
 
 	@staticmethod
@@ -75,18 +72,27 @@ class Utils():
 		target_frames = int(np.ceil((target_duration * sr) / n_fft)) #assumes no hop length
 		current_frames = aug_spec.shape[1]
 		pad_frames = target_frames - current_frames
-		pad_aug_spec = torch.nn.functional.pad(aug_spec, (pad_frames//2, pad_frames//2), mode="constant", value=mask_val)
+
+		if pad_frames > 0:
+			pad_aug_spec = F.pad(...)
+		else:
+			pad_aug_spec = torch.nn.functional.pad(aug_spec, (pad_frames//2, pad_frames//2), mode="constant", value=mask_val)
 		
 		return pad_aug_spec
 
 	@staticmethod
 	def get_audio_and_rechannel(file_path, nchannels):
 		sig, sr = torchaudio.load(file_path)
-		if (sig.shape[0] == nchannels):
-			return ((sig, sr))
-		if (nchannels == 1):
-			resig = sig[:1, :]
+
+		if sig.shape[0] == nchannels:
+			return (sig, sr)
+
+		if sig.shape[0] > nchannels:
+			resig = sig[:nchannels, :]
 		else:
-			resig = torch.cat([sig, sig])
+			repeats = nchannels // sig.shape[0]
+			resig = sig.repeat(repeats, 1)
+
 		return (resig, sr)
+
 			

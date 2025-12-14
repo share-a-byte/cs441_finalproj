@@ -5,6 +5,7 @@ import subprocess
 import os
 from pathlib import Path
 import random
+import time
 import numpy as np
 
 # Make sure these folders exist
@@ -34,17 +35,7 @@ class SongDownloader:
 
         self.capacity = capacity
 
-        n = len(df)
-        n_train = int(0.8 * n)
-        n_val = int(0.1 * n)
-
-        df_shuffled = df.sample(frac=1, random_state=1).reset_index(drop=True)
-
-        self.train_df = df_shuffled.iloc[:n_train].copy()
-        self.val_df = df_shuffled.iloc[n_train:n_train+n_val].copy()
-        self.test_df = df_shuffled.iloc[n_train+n_val:].copy()
-
-        self.clip_pool = {"train": [], "test": [], "val": []}
+        self.clip_pool = {}
 
         for interval in self.intervals:
             os.makedirs(f"clips/{interval}sec", exist_ok=True)
@@ -59,34 +50,22 @@ class SongDownloader:
 
         return tot_length
 
-    def get_clip(self, set_type):
-        my_df = None
-        if set_type == "train":
-            my_df = self.train_df
-        elif set_type == "test":
-            my_df = self.test_df
-        else:
-            my_df = self.val_df
+    def get_clip(self):
+        while len(self.clip_pool) < self.capacity:
+            self.download_new_song()
 
-        while len(self.clip_pool[set_type]) < self.capacity and len(my_df) > 0:
-            self.download_new_song(set_type)
         print('Clip pool filled to capacity!\n')
-        idx = int(np.floor(random.random() * len(self.clip_pool[set_type])))
-        rand_clip_path, res_type = self.clip_pool[set_type].pop(idx) # Popping tuple
+        idx = int(np.floor(random.random() * len(self.clip_pool)))
+
+        rand_clip_path, res_type = self.clip_pool.pop(idx) # Popping tuple
 
         return [rand_clip_path, (1 if res_type == "AI" else 0)]
 
-    def download_new_song(self, set_type):
+    def download_new_song(self):
         # Step 1. Download_new passed from getitem -> if it is False, we proceed with the clip pool
         sampled = None
 
-        if set_type == "train":
-            sampled = self.train_df.sample(n=1)
-        elif set_type == "test":
-            sampled = self.test_df.sample(n=1)
-        else:
-            sampled = self.val_df.sample(n=1)
-
+        sampled = self.df.sample(n=1)
         res = sampled.values[0]
         uid, og_type, offset = res[0], res[1], int(res[2])
         url = f"https://www.youtube.com/watch?v={uid}"
@@ -117,7 +96,7 @@ class SongDownloader:
                 prefix = f"{uid}_{offset}_"
                 for fname in os.listdir(clip_dir):
                     if fname.startswith(prefix):
-                        self.clip_pool[set_type].append(
+                        self.clip_pool.append(
                             (os.path.join(clip_dir, fname), og_type)
                         )
                         
@@ -128,10 +107,3 @@ class SongDownloader:
                 os.remove(output_filename)
             except FileNotFoundError:
                 pass
-
-        if set_type == "train":
-            self.train_df = self.train_df.drop(sampled.index)
-        elif set_type == "test":
-            self.test_df = self.test_df.drop(sampled.index)
-        else:
-            self.val_df = self.val_df.drop(sampled.index)
