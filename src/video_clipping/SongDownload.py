@@ -19,6 +19,12 @@ class SongDownloader:
                 'preferredcodec': self.format,
             }]
         }
+        path = __file__.split("/")
+        path.pop()
+        path = "/".join(path)
+
+        os.chdir(path)
+
         df = pd.read_csv("FINAL.csv")
         df = df[['uid', 'type', 'offset']]
         self.df = df
@@ -36,8 +42,7 @@ class SongDownloader:
         self.test_df = df_shuffled.iloc[n_train+n_val:].copy()
 
         self.clip_pool = {"train": [], "test": [], "val": []}
-
-        os.chdir("../..")
+        
         for interval in self.intervals:
             os.makedirs(f"clips/{interval}sec", exist_ok=True)
 

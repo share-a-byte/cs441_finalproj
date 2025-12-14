@@ -32,4 +32,3 @@ class SoundDataset(Dataset):
         sgram = AP.Utils.spectrogram(noised_aud)
         aug_sgram = AP.Utils.augment_spectrogram(sgram, max_mask=0.1, n_fmask=2, n_tmask=2)
         return aug_sgram, id
-
