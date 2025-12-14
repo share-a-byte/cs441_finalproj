@@ -1,19 +1,17 @@
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pandas as pd
 import os
 from data_processing import AudioProcessing as AP
-from video_clipping import SongDownload 
-from SongDownload import SongDownloader
+from video_clipping.SongDownload import SongDownloader
 
 from pathlib import Path
 import kagglehub
 import os
 
-base = Path(__file__).resolve().parent
-out_path = base / "parq_data" / "dataset.parquet"
-out_path.parent.mkdir(parents=True, exist_ok=True)
 
-def stream_to_parquet(downloader, out_path=out_path, chunk_size=128):
+
+def stream_to_parquet(downloader, out_path, chunk_size=128):
     rows = []
     writer = None
 
@@ -48,6 +46,7 @@ def stream_to_parquet(downloader, out_path=out_path, chunk_size=128):
                 pass
 
             if len(rows) >= chunk_size:
+                print('>>> FINISHED CHUNK <<<\n')
                 table = pa.Table.from_pylist(rows)
                 
                 if writer is None:
@@ -61,6 +60,8 @@ def stream_to_parquet(downloader, out_path=out_path, chunk_size=128):
 
     if rows:
         table = pa.Table.from_pylist(rows)
+        if writer is None:
+            writer = pq.ParquetWriter(out_path, table.schema)
         writer.write_table(table)
 
     if writer:
@@ -68,4 +69,9 @@ def stream_to_parquet(downloader, out_path=out_path, chunk_size=128):
 
 if __name__ == "__main__":
     downloader = SongDownloader(50)
-    stream_to_parquet(downloader, Path(__file__).resolve().parent + "/parq_data/")
+    base = Path(__file__).resolve().parent
+    out_path = base / "parq_data" / "dataset.parquet"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    stream_to_parquet(downloader, out_path=out_path)
+
+    
