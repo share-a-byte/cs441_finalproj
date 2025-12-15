@@ -48,10 +48,9 @@ class SongDownloader:
             row = self.df.iloc[self.cursor]
             self.cursor += 1
 
-            
-
             uid, og_type, offset = row["uid"], row["type"], int(row["offset"])
             print("Downloading song ", self.cursor, " retry number ", self.retry_counts.get(uid, 0))
+            
             label = 1 if og_type == "AI" else 0
             url = f"https://www.youtube.com/watch?v={uid}"
 
